@@ -155,45 +155,54 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	fc.baseConfig = baseConfig(*c)
 
 	type migratedField struct {
-		OldName, NewName   string
-		OldValue, NewValue *string
+		oldName, newName   string
+		oldValue, newValue *string
 
 		defaultValue string
 	}
 	migratedFields := []*migratedField{
 		{
-			OldName: "netdev_device_whitelist", NewName: "netdev_device_include",
-			OldValue: &fc.NetdevDeviceWhitelist, NewValue: &fc.NetdevDeviceInclude,
+			oldName: "netdev_device_whitelist",
+			newName: "netdev_device_include",
+			oldValue: &fc.NetdevDeviceWhitelist,
+			newValue: &fc.NetdevDeviceInclude,
+			defaultValue: DefaultConfig.NetdevDeviceInclude,
 		},
 		{
-			OldName: "netdev_device_blacklist", NewName: "netdev_device_exclude",
-			OldValue: &fc.NetdevDeviceBlacklist, NewValue: &fc.NetdevDeviceExclude,
+			oldName: "netdev_device_blacklist",
+			newName: "netdev_device_exclude",
+			oldValue: &fc.NetdevDeviceBlacklist,
+			newValue: &fc.NetdevDeviceExclude,
+			defaultValue: DefaultConfig.NetdevDeviceExclude,
 		},
 		{
-			OldName: "systemd_unit_whitelist", NewName: "systemd_unit_include",
-			OldValue: &fc.SystemdUnitWhitelist, NewValue: &fc.SystemdUnitInclude,
+			oldName: "systemd_unit_whitelist",
+			newName: "systemd_unit_include",
+			oldValue: &fc.SystemdUnitWhitelist,
+			newValue: &fc.SystemdUnitInclude,
+			defaultValue: DefaultConfig.SystemdUnitInclude,
 		},
 		{
-			OldName: "systemd_unit_blacklist", NewName: "systemd_unit_exclude",
-			OldValue: &fc.SystemdUnitBlacklist, NewValue: &fc.SystemdUnitExclude,
+			oldName: "systemd_unit_blacklist",
+			newName: "systemd_unit_exclude",
+			oldValue: &fc.SystemdUnitBlacklist,
+			newValue: &fc.SystemdUnitExclude,
+			defaultValue: DefaultConfig.SystemdUnitExclude,
 		},
 		{
-			OldName: "filesystem_ignored_mount_points", NewName: "filesystem_mount_points_exclude",
-			OldValue: &fc.FilesystemIgnoredMountPoints, NewValue: &fc.FilesystemMountPointsExclude,
+			oldName: "filesystem_ignored_mount_points",
+			newName: "filesystem_mount_points_exclude",
+			oldValue: &fc.FilesystemIgnoredMountPoints,
+			newValue: &fc.FilesystemMountPointsExclude,
+			defaultValue: DefaultConfig.FilesystemMountPointsExclude,
 		},
 		{
-			OldName: "filesystem_ignored_fs_types", NewName: "filesystem_fs_types_exclude",
-			OldValue: &fc.FilesystemIgnoredFSTypes, NewValue: &fc.FilesystemFSTypesExclude,
+			oldName: "filesystem_ignored_fs_types",
+			newName: "filesystem_fs_types_exclude",
+			oldValue: &fc.FilesystemIgnoredFSTypes,
+			newValue: &fc.FilesystemFSTypesExclude,
+			defaultValue: DefaultConfig.FilesystemFSTypesExclude,
 		},
-	}
-
-	// We don't know when fields are unmarshaled unless they have non-zero
-	// values. Defaults stop us from being able to check, so we'll temporarily
-	// cache the default and make sure both the old and new migrated fields are
-	// zero.
-	for _, mf := range migratedFields {
-		mf.defaultValue = *mf.NewValue
-		*mf.NewValue = ""
 	}
 
 	if err := unmarshal(&fc); err != nil {
@@ -201,22 +210,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	for _, mf := range migratedFields {
-		switch {
-		case *mf.OldValue != "" && *mf.NewValue != "": // New set, old set
-			return fmt.Errorf("only one of %q and %q may be specified", mf.OldName, mf.NewName)
+		if *mf.oldValue == "" {
+			continue
+		}
 
-		case *mf.NewValue == "" && *mf.OldValue != "": // New unset, old set
-			*mf.NewValue = *mf.OldValue
+		if *mf.newValue == mf.defaultValue {
+			*mf.newValue = *mf.oldValue
 
-			warning := fmt.Sprintf("%q is deprecated by %q and will be removed in a future version", mf.OldName, mf.NewName)
+			warning := fmt.Sprintf("%q is deprecated by %q and will be removed in a future version", mf.oldName, mf.newName)
 			fc.UnmarshalWarnings = append(fc.UnmarshalWarnings, warning)
-
-		case *mf.NewValue == "" && *mf.OldValue == "": // Neither set.
-			// Copy the default back to mf.NewValue.
-			*mf.NewValue = mf.defaultValue
-
-		case *mf.NewValue != "" && *mf.OldValue == "": // New set, old unset
-			// Nothing to do
+		} else {
+			return fmt.Errorf("only one of %q and %q may be specified", mf.oldName, mf.newName)
 		}
 	}
 
